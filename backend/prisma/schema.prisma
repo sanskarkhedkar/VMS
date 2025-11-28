@@ -1,0 +1,247 @@
+// Prisma schema for Visitor Management System
+// Database: PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum UserRole {
+  ADMIN
+  HOST_EMPLOYEE
+  PROCESS_ADMIN
+  SECURITY_GUARD
+  SECURITY_MANAGER
+}
+
+enum UserStatus {
+  PENDING_APPROVAL
+  ACTIVE
+  SUSPENDED
+  REJECTED
+}
+
+enum VisitorStatus {
+  INVITED
+  PENDING_DETAILS
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+  BLOCKED
+  BLACKLISTED
+}
+
+enum VisitPurpose {
+  MEETING
+  INTERVIEW
+  DELIVERY
+  MAINTENANCE
+  PERSONAL
+  OFFICIAL
+  OTHER
+}
+
+// ============================================
+// MODELS
+// ============================================
+
+model User {
+  id                String      @id @default(uuid())
+  email             String      @unique
+  password          String
+  firstName         String
+  lastName          String
+  phone             String?
+  department        String?
+  designation       String?
+  employeeId        String?     @unique
+  role              UserRole    @default(HOST_EMPLOYEE)
+  status            UserStatus  @default(PENDING_APPROVAL)
+  profileImage      String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  approvedBy        String?
+  approvedAt        DateTime?
+  rejectionReason   String?
+
+  // Relations
+  hostedVisits      Visit[]     @relation("HostEmployee")
+  approvedVisits    Visit[]     @relation("ApprovedBy")
+  processedUsers    User[]      @relation("ProcessedBy")
+  processedByUser   User?       @relation("ProcessedBy", fields: [approvedBy], references: [id])
+  activityLogs      ActivityLog[]
+  notifications     Notification[]
+  visitorRequests   VisitorRequest[]
+
+  @@index([email])
+  @@index([role])
+  @@index([status])
+}
+
+model Visitor {
+  id                String        @id @default(uuid())
+  email             String
+  firstName         String
+  lastName          String
+  phone             String?
+  company           String?
+  designation       String?
+  idType            String?
+  idNumber          String?
+  idProofUrl        String?
+  profileImage      String?
+  isBlacklisted     Boolean       @default(false)
+  blacklistReason   String?
+  blacklistedAt     DateTime?
+  blacklistedBy     String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  // Relations
+  visits            Visit[]
+  
+  @@index([email])
+  @@index([isBlacklisted])
+}
+
+model Visit {
+  id                String        @id @default(uuid())
+  visitorId         String
+  hostEmployeeId    String
+  purpose           VisitPurpose  @default(MEETING)
+  purposeDetails    String?
+  status            VisitorStatus @default(INVITED)
+  
+  // Scheduling
+  scheduledDate     DateTime
+  scheduledTimeIn   DateTime
+  scheduledTimeOut  DateTime
+  actualTimeIn      DateTime?
+  actualTimeOut     DateTime?
+  
+  // QR & Pass
+  qrCode            String?       @unique
+  passNumber        String?       @unique
+  
+  // Approval
+  approvedById      String?
+  approvedAt        DateTime?
+  rejectionReason   String?
+  
+  // Walk-in specific
+  isWalkIn          Boolean       @default(false)
+  walkInCreatedBy   String?
+  
+  // Meeting extension
+  extensionCount    Int           @default(0)
+  lastExtendedAt    DateTime?
+  
+  // Additional info
+  vehicleNumber     String?
+  numberOfGuests    Int           @default(1)
+  specialInstructions String?
+  
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  // Relations
+  visitor           Visitor       @relation(fields: [visitorId], references: [id])
+  hostEmployee      User          @relation("HostEmployee", fields: [hostEmployeeId], references: [id])
+  approvedBy        User?         @relation("ApprovedBy", fields: [approvedById], references: [id])
+  activityLogs      ActivityLog[]
+
+  @@index([visitorId])
+  @@index([hostEmployeeId])
+  @@index([status])
+  @@index([scheduledDate])
+  @@index([qrCode])
+}
+
+model VisitorRequest {
+  id                String        @id @default(uuid())
+  visitorId         String?
+  visitId           String?
+  requestType       String        // BLOCK, DELETE, BLACKLIST
+  reason            String
+  status            String        @default("PENDING") // PENDING, APPROVED, REJECTED
+  requestedById     String
+  processedById     String?
+  processedAt       DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  // Relations
+  requestedBy       User          @relation(fields: [requestedById], references: [id])
+
+  @@index([status])
+  @@index([requestType])
+}
+
+model ActivityLog {
+  id                String        @id @default(uuid())
+  userId            String?
+  visitId           String?
+  action            String
+  description       String
+  ipAddress         String?
+  userAgent         String?
+  metadata          Json?
+  createdAt         DateTime      @default(now())
+
+  // Relations
+  user              User?         @relation(fields: [userId], references: [id])
+  visit             Visit?        @relation(fields: [visitId], references: [id])
+
+  @@index([userId])
+  @@index([visitId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model Notification {
+  id                String        @id @default(uuid())
+  userId            String
+  title             String
+  message           String
+  type              String        // APPROVAL_REQUEST, VISITOR_ARRIVED, MEETING_ENDING, etc.
+  isRead            Boolean       @default(false)
+  metadata          Json?
+  createdAt         DateTime      @default(now())
+
+  // Relations
+  user              User          @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([isRead])
+}
+
+model SystemSetting {
+  id                String        @id @default(uuid())
+  key               String        @unique
+  value             String
+  description       String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+}
+
+model EmailTemplate {
+  id                String        @id @default(uuid())
+  name              String        @unique
+  subject           String
+  body              String        @db.Text
+  variables         Json?
+  isActive          Boolean       @default(true)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+}
