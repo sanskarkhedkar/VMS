@@ -66,7 +66,8 @@ exports.signup = asyncHandler(async (req, res) => {
   });
 
   // Send pending approval email
-  await sendEmail(email, 'signupPendingApproval', user);
+await sendEmail(email, 'signupPendingApproval', { user });
+
 
   // Log activity
   await logActivity({
@@ -230,7 +231,10 @@ exports.forgotPassword = asyncHandler(async (req, res) => {
 
   // Send reset email
   const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}&email=${email}`;
-  await sendEmail(email, 'passwordReset', { ...user, resetUrl });
+  await sendEmail(user.email, 'passwordReset', {
+  user,
+  resetUrl
+});
 
   res.json({
     success: true,

@@ -128,7 +128,7 @@ exports.bulkApproveUsers = asyncHandler(async (req, res) => {
   // Send approval emails
   const loginUrl = `${process.env.FRONTEND_URL}/login`;
   for (const user of users) {
-    await sendEmail(user.email, 'userApproved', { ...user, loginUrl });
+    await sendEmail(user.email, 'userApproved', { user, loginUrl });
   }
 
   // Log activity

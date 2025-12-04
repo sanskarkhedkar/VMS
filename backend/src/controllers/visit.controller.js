@@ -297,11 +297,12 @@ exports.createInvitation = asyncHandler(async (req, res) => {
 
   // Send invitation email
   const formUrl = `${process.env.FRONTEND_URL}/visitor/complete/${visit.id}`;
-  await sendEmail(visitorEmail, 'visitorInvitation', {
-    ...visitor,
-    visit,
-    formUrl
-  });
+  await sendEmail(visitor.email, 'visitorInvitation', {
+  visitor,
+  visit,
+  formUrl
+});
+
 
   // Log activity
   await logActivity({
@@ -585,9 +586,9 @@ exports.approveVisit = asyncHandler(async (req, res) => {
     }
   });
 
-  // Send approval email to visitor with QR
-  await sendEmail(visit.visitor.email, 'visitApproved', {
-    ...visit.visitor,
+  // Send approval email to visitor with QR (use updated data with pass number/QR)
+  await sendEmail(updatedVisit.visitor.email, 'visitApproved', {
+    visitor: updatedVisit.visitor,
     visit: updatedVisit,
     qrCodeDataUrl
   });

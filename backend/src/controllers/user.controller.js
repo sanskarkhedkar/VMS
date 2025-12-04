@@ -195,7 +195,7 @@ exports.approveUser = asyncHandler(async (req, res) => {
 
   // Send approval email
   const loginUrl = `${process.env.FRONTEND_URL}/login`;
-  await sendEmail(user.email, 'userApproved', { ...user, loginUrl });
+  await sendEmail(user.email, 'userApproved', { user, loginUrl });
 
   // Log activity
   await logActivity({
@@ -258,7 +258,7 @@ exports.suspendUser = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   const user = await prisma.user.findUnique({ where: { id } });
-  
+
   if (!user) {
     return res.status(404).json({
       success: false,
@@ -290,6 +290,47 @@ exports.suspendUser = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     message: 'User suspended',
+    data: { id: updatedUser.id, status: updatedUser.status }
+  });
+});
+
+// Unsuspend user
+exports.unsuspendUser = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const user = await prisma.user.findUnique({ where: { id } });
+
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      message: 'User not found'
+    });
+  }
+
+  if (user.status !== 'SUSPENDED') {
+    return res.status(400).json({
+      success: false,
+      message: 'User is not suspended'
+    });
+  }
+
+  const updatedUser = await prisma.user.update({
+    where: { id },
+    data: { status: 'ACTIVE' }
+  });
+
+  // Log activity
+  await logActivity({
+    userId: req.user.id,
+    action: 'USER_UNSUSPENDED',
+    description: `User unsuspended: ${user.email}`,
+    metadata: { unsuspendedUserId: id },
+    req
+  });
+
+  res.json({
+    success: true,
+    message: 'User unsuspended',
     data: { id: updatedUser.id, status: updatedUser.status }
   });
 });

@@ -46,6 +46,12 @@ router.post('/:id/suspend',
   userController.suspendUser
 );
 
+// Unsuspend user (Admin only)
+router.post('/:id/unsuspend',
+  requireRole(ROLES.ADMIN),
+  userController.unsuspendUser
+);
+
 // Update user
 router.put('/:id',
   requireRole(ROLES.ADMIN),

@@ -4,8 +4,8 @@ const nodemailer = require('nodemailer');
 const createTransporter = () => {
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT) || 587,
-    secure: process.env.SMTP_PORT === '465',
+    port: parseInt(process.env.SMTP_PORT, 10) || 587,
+    secure: process.env.SMTP_PORT === '465', // true for 465, false for 587
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
@@ -16,7 +16,7 @@ const createTransporter = () => {
 // Email templates
 const emailTemplates = {
   // User signup pending approval
-  signupPendingApproval: (user) => ({
+  signupPendingApproval: ({ user }) => ({
     subject: 'Account Registration Pending Approval',
     html: `
       <!DOCTYPE html>
@@ -61,7 +61,7 @@ const emailTemplates = {
   }),
 
   // User approved
-  userApproved: (user, loginUrl) => ({
+  userApproved: ({ user, loginUrl }) => ({
     subject: '✅ Account Approved - You Can Now Login',
     html: `
       <!DOCTYPE html>
@@ -106,7 +106,7 @@ const emailTemplates = {
   }),
 
   // Visitor invitation
-  visitorInvitation: (visitor, visit, formUrl) => ({
+  visitorInvitation: ({ visitor, visit, formUrl }) => ({
     subject: `🎫 You're Invited - ${visit.hostEmployee.firstName} ${visit.hostEmployee.lastName}`,
     html: `
       <!DOCTYPE html>
@@ -156,7 +156,7 @@ const emailTemplates = {
   }),
 
   // Visit approved with QR
-  visitApproved: (visitor, visit, qrCodeDataUrl) => ({
+  visitApproved: ({ visitor, visit, qrCodeDataUrl }) => ({
     subject: '✅ Visit Approved - Your Entry Pass',
     html: `
       <!DOCTYPE html>
@@ -209,7 +209,7 @@ const emailTemplates = {
   }),
 
   // Host notification - visitor arrived
-  visitorArrived: (host, visitor, visit) => ({
+  visitorArrived: ({ host, visitor, visit }) => ({
     subject: `🔔 ${visitor.firstName} ${visitor.lastName} Has Arrived`,
     html: `
       <!DOCTYPE html>
@@ -248,7 +248,7 @@ const emailTemplates = {
   }),
 
   // Password reset
-  passwordReset: (user, resetUrl) => ({
+  passwordReset: ({ user, resetUrl }) => ({
     subject: '🔐 Password Reset Request',
     html: `
       <!DOCTYPE html>
@@ -296,14 +296,20 @@ const emailTemplates = {
   })
 };
 
-// Send email function
+// Send email using a template
 const sendEmail = async (to, templateName, data) => {
   try {
     const transporter = createTransporter();
-    const template = emailTemplates[templateName](data);
-    
+
+    const templateFn = emailTemplates[templateName];
+    if (!templateFn) {
+      throw new Error(`Unknown email template: ${templateName}`);
+    }
+
+    const template = templateFn(data);
+
     const mailOptions = {
-      from: process.env.SMTP_FROM || '"VMS System" <noreply@vms.com>',
+      from: process.env.SMTP_FROM || '"Sanskar Khedkar" <sanskarkhedkar1903@gmail.com>',
       to,
       subject: template.subject,
       html: template.html
@@ -318,19 +324,20 @@ const sendEmail = async (to, templateName, data) => {
   }
 };
 
-// Send custom email
+// Send a fully custom email
 const sendCustomEmail = async (to, subject, html) => {
   try {
     const transporter = createTransporter();
-    
+
     const mailOptions = {
-      from: process.env.SMTP_FROM || '"VMS System" <noreply@vms.com>',
+      from: process.env.SMTP_FROM || '"Sanskar Khedkar" <sanskarkhedkar1903@gmail.com>',
       to,
       subject,
       html
     };
 
     const info = await transporter.sendMail(mailOptions);
+    console.log('Custom email sent:', info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (error) {
     console.error('Email sending failed:', error);

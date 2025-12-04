@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
 import { formatDate, formatRole, formatStatus, getStatusColor } from '../../lib/utils';
-import { Users, Search, Filter, CheckCircle, XCircle, Ban, Loader2, MoreVertical } from 'lucide-react';
+import { Users, Search, Filter, CheckCircle, XCircle, Ban, Loader2, MoreVertical, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function AdminUsers() {
@@ -32,6 +32,30 @@ export default function AdminUsers() {
     },
     onError: (error) => toast.error(error.response?.data?.message || 'Failed to suspend'),
   });
+
+  const unsuspendMutation = useMutation({
+    mutationFn: (id) => api.post(`/users/${id}/unsuspend`),
+    onSuccess: () => {
+      toast.success('User unsuspended');
+      queryClient.invalidateQueries(['admin-users']);
+    },
+    onError: (error) => toast.error(error.response?.data?.message || 'Failed to unsuspend'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id) => api.delete(`/users/${id}`),
+    onSuccess: () => {
+      toast.success('User deleted successfully');
+      queryClient.invalidateQueries(['admin-users']);
+    },
+    onError: (error) => toast.error(error.response?.data?.message || 'Failed to delete user'),
+  });
+
+  const handleDelete = (user) => {
+    if (window.confirm(`Are you sure you want to delete ${user.firstName} ${user.lastName}? This action cannot be undone.`)) {
+      deleteMutation.mutate(user.id);
+    }
+  };
 
   const roles = [
     { value: '', label: 'All Roles' },
@@ -140,16 +164,36 @@ export default function AdminUsers() {
                     </td>
                     <td className="text-slate-600 dark:text-slate-300">{formatDate(user.createdAt)}</td>
                     <td>
-                      {user.status === 'ACTIVE' && (
+                      <div className="flex items-center gap-2">
+                        {user.status === 'ACTIVE' && (
+                          <button
+                            onClick={() => suspendMutation.mutate(user.id)}
+                            disabled={suspendMutation.isPending}
+                            className="btn-ghost btn-sm text-danger-600"
+                            title="Suspend user"
+                          >
+                            <Ban className="w-4 h-4" />
+                          </button>
+                        )}
+                        {user.status === 'SUSPENDED' && (
+                          <button
+                            onClick={() => unsuspendMutation.mutate(user.id)}
+                            disabled={unsuspendMutation.isPending}
+                            className="btn-ghost btn-sm text-success-600"
+                            title="Unsuspend user"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                          </button>
+                        )}
                         <button
-                          onClick={() => suspendMutation.mutate(user.id)}
-                          disabled={suspendMutation.isPending}
-                          className="btn-ghost btn-sm text-danger-600"
-                          title="Suspend user"
+                          onClick={() => handleDelete(user)}
+                          disabled={deleteMutation.isPending}
+                          className="btn-ghost btn-sm text-danger-600 hover:text-danger-700"
+                          title="Delete user"
                         >
-                          <Ban className="w-4 h-4" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
-                      )}
+                      </div>
                     </td>
                   </tr>
                 ))
