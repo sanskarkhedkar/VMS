@@ -183,7 +183,7 @@ const emailTemplates = {
             <p>Your visit has been <strong style="color: #059669;">approved</strong>. Please present the QR code below at the security desk upon arrival.</p>
             
             <div class="qr-box">
-              <img src="${qrCodeDataUrl}" alt="Entry QR Code" style="width: 200px; height: 200px;" />
+              <img src="cid:entry-qr-code" alt="Entry QR Code" style="width: 200px; height: 200px;" />
               <p class="pass-number">${visit.passNumber}</p>
             </div>
             
@@ -205,7 +205,17 @@ const emailTemplates = {
         </div>
       </body>
       </html>
-    `
+    `,
+    attachments: qrCodeDataUrl
+      ? [
+          {
+            filename: 'entry-pass.png',
+            content: qrCodeDataUrl.split('base64,')[1] || qrCodeDataUrl,
+            encoding: 'base64',
+            cid: 'entry-qr-code'
+          }
+        ]
+      : []
   }),
 
   // Host notification - visitor arrived
@@ -312,7 +322,8 @@ const sendEmail = async (to, templateName, data) => {
       from: process.env.SMTP_FROM || '"Sanskar Khedkar" <sanskarkhedkar1903@gmail.com>',
       to,
       subject: template.subject,
-      html: template.html
+      html: template.html,
+      attachments: template.attachments
     };
 
     const info = await transporter.sendMail(mailOptions);
