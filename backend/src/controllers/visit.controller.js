@@ -4,6 +4,24 @@ const { logActivity } = require('../middleware/logger.middleware');
 const { sendEmail } = require('../utils/email.util');
 const { generateQRCode, generatePassNumber, verifyQRCode } = require('../utils/qr.util');
 
+const normalizeGuestData = (numberOfGuests, guests) => {
+  const guestCount = Number.isInteger(numberOfGuests) && numberOfGuests >= 0 ? numberOfGuests : 0;
+
+  if (!Array.isArray(guests) || guestCount === 0) {
+    return { guestCount, guestDetails: [] };
+  }
+
+  const guestDetails = guests
+    .filter((guest) => guest && (guest.name || guest.contact))
+    .map((guest) => ({
+      name: guest.name?.trim() || '',
+      contact: guest.contact?.trim() || '',
+    }))
+    .slice(0, guestCount);
+
+  return { guestCount, guestDetails };
+};
+
 // Get all visits with filters
 exports.getAllVisits = asyncHandler(async (req, res) => {
   const { 
@@ -236,8 +254,11 @@ exports.createInvitation = asyncHandler(async (req, res) => {
     scheduledTimeOut,
     vehicleNumber,
     numberOfGuests,
+    guests,
     specialInstructions
   } = req.body;
+
+  const { guestCount, guestDetails } = normalizeGuestData(numberOfGuests, guests);
 
   // Check for blacklist
   const existingVisitor = await prisma.visitor.findFirst({
@@ -278,7 +299,8 @@ exports.createInvitation = asyncHandler(async (req, res) => {
       scheduledTimeIn: new Date(scheduledTimeIn),
       scheduledTimeOut: new Date(scheduledTimeOut),
       vehicleNumber,
-      numberOfGuests: numberOfGuests || 1,
+      numberOfGuests: guestCount,
+      guestDetails,
       specialInstructions,
       status: 'INVITED'
     },
@@ -331,8 +353,11 @@ exports.reinviteVisitor = asyncHandler(async (req, res) => {
     scheduledTimeOut,
     vehicleNumber,
     numberOfGuests,
+    guests,
     specialInstructions
   } = req.body;
+
+  const { guestCount, guestDetails } = normalizeGuestData(numberOfGuests, guests);
 
   const visitor = await prisma.visitor.findUnique({ where: { id: visitorId } });
   
@@ -361,7 +386,8 @@ exports.reinviteVisitor = asyncHandler(async (req, res) => {
       scheduledTimeIn: new Date(scheduledTimeIn),
       scheduledTimeOut: new Date(scheduledTimeOut),
       vehicleNumber,
-      numberOfGuests: numberOfGuests || 1,
+      numberOfGuests: guestCount,
+      guestDetails,
       specialInstructions,
       status: 'PENDING_APPROVAL' // Skip invitation step for existing visitors
     },
@@ -425,8 +451,12 @@ exports.createWalkIn = asyncHandler(async (req, res) => {
     purpose,
     purposeDetails,
     idType,
-    idNumber
+    idNumber,
+    numberOfGuests,
+    guests
   } = req.body;
+
+  const { guestCount, guestDetails } = normalizeGuestData(numberOfGuests, guests);
 
   // Check blacklist
   const existingVisitor = await prisma.visitor.findFirst({
@@ -490,6 +520,8 @@ exports.createWalkIn = asyncHandler(async (req, res) => {
       scheduledTimeOut: endTime,
       isWalkIn: true,
       walkInCreatedBy: req.user.id,
+      numberOfGuests: guestCount,
+      guestDetails,
       status: 'PENDING_APPROVAL'
     },
     include: {

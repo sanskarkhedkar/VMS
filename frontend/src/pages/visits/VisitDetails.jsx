@@ -128,7 +128,7 @@ export default function VisitDetails() {
               <div>
                 <p className="text-sm text-slate-500 mb-1">Guests</p>
                 <p className="font-medium text-slate-900 dark:text-white">
-                  {visit.numberOfGuests || 1} person(s)
+                  {(visit.numberOfGuests ?? 0)} {(visit.numberOfGuests ?? 0) === 1 ? 'guest' : 'guests'}
                 </p>
               </div>
             </div>
@@ -137,6 +137,25 @@ export default function VisitDetails() {
               <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
                 <p className="text-sm text-slate-500 mb-1">Details</p>
                 <p className="text-slate-700 dark:text-slate-300">{visit.purposeDetails}</p>
+              </div>
+            )}
+
+            {visit.guestDetails?.length > 0 && (
+              <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
+                <p className="text-sm text-slate-500 mb-3">Guest Details</p>
+                <div className="space-y-3">
+                  {visit.guestDetails.map((guest, index) => (
+                    <div key={`${guest.name || 'guest'}-${index}`} className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 text-sm font-semibold">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <p className="font-medium text-slate-900 dark:text-white">{guest.name || 'Guest'}</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">{guest.contact || '-'}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

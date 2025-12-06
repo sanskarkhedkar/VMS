@@ -1,10 +1,27 @@
 const express = require('express');
 const router = express.Router();
-const { body, query } = require('express-validator');
+const { body } = require('express-validator');
 const visitController = require('../controllers/visit.controller');
 const { validate } = require('../middleware/validate.middleware');
 const { authenticate, requireRole } = require('../middleware/auth.middleware');
 const { ROLES } = require('../config/roles.config');
+
+const guestValidation = [
+  body('numberOfGuests').optional().isInt({ min: 0, max: 10 }).toInt().withMessage('Number of guests must be between 0 and 10'),
+  body('guests').custom((value, { req }) => {
+    const count = Number.isInteger(req.body.numberOfGuests) ? req.body.numberOfGuests : Number(req.body.numberOfGuests || 0);
+    if (!count) return true;
+    if (!Array.isArray(value) || value.length !== count) {
+      throw new Error('Provide guest name and contact for each guest');
+    }
+    value.forEach((guest, index) => {
+      if (!guest?.name || !guest?.contact) {
+        throw new Error(`Guest ${index + 1} name and contact required`);
+      }
+    });
+    return true;
+  })
+];
 
 // All routes require authentication
 router.use(authenticate);
@@ -39,7 +56,8 @@ router.post('/invite',
       .withMessage('Invalid purpose'),
     body('scheduledDate').isISO8601().withMessage('Valid date required'),
     body('scheduledTimeIn').isISO8601().withMessage('Valid time required'),
-    body('scheduledTimeOut').isISO8601().withMessage('Valid time required')
+    body('scheduledTimeOut').isISO8601().withMessage('Valid time required'),
+    ...guestValidation
   ],
   validate,
   visitController.createInvitation
@@ -53,7 +71,8 @@ router.post('/reinvite',
       .withMessage('Invalid purpose'),
     body('scheduledDate').isISO8601().withMessage('Valid date required'),
     body('scheduledTimeIn').isISO8601().withMessage('Valid time required'),
-    body('scheduledTimeOut').isISO8601().withMessage('Valid time required')
+    body('scheduledTimeOut').isISO8601().withMessage('Valid time required'),
+    ...guestValidation
   ],
   validate,
   visitController.reinviteVisitor
@@ -67,7 +86,8 @@ router.post('/walkin',
     body('visitorFirstName').notEmpty().withMessage('First name required'),
     body('visitorLastName').notEmpty().withMessage('Last name required'),
     body('hostEmployeeId').notEmpty().withMessage('Host employee required'),
-    body('purpose').optional().isIn(['MEETING', 'INTERVIEW', 'DELIVERY', 'MAINTENANCE', 'PERSONAL', 'OFFICIAL', 'OTHER'])
+    body('purpose').optional().isIn(['MEETING', 'INTERVIEW', 'DELIVERY', 'MAINTENANCE', 'PERSONAL', 'OFFICIAL', 'OTHER']),
+    ...guestValidation
   ],
   validate,
   visitController.createWalkIn

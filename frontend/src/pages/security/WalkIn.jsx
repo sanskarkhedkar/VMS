@@ -1,12 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import api from '../../lib/api';
 import { UserPlus, Loader2, CheckCircle, Search, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+const guestSchema = z.object({
+  name: z.string().min(1, 'Guest name required'),
+  contact: z.string().min(1, 'Guest contact required'),
+});
 
 const walkInSchema = z.object({
   visitorEmail: z.string().email('Valid email required'),
@@ -19,6 +24,17 @@ const walkInSchema = z.object({
   purposeDetails: z.string().optional(),
   idType: z.string().optional(),
   idNumber: z.string().optional(),
+  numberOfGuests: z.preprocess(
+    (val) => (val === '' || Number.isNaN(val) ? 0 : Number(val)),
+    z.number().int().min(0).max(10).default(0)
+  ),
+  guests: z.array(guestSchema).default([]),
+}).refine((data) => {
+  if ((data.numberOfGuests || 0) === 0) return true;
+  return data.guests.length === data.numberOfGuests;
+}, {
+  message: 'Please provide details for each guest',
+  path: ['guests'],
 });
 
 export default function WalkIn() {
@@ -31,15 +47,42 @@ export default function WalkIn() {
     handleSubmit,
     setValue,
     watch,
+    control,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(walkInSchema),
     defaultValues: {
       purpose: 'MEETING',
+      numberOfGuests: 0,
+      guests: [],
     },
   });
 
+  const {
+    fields: guestFields,
+    append: appendGuest,
+    remove: removeGuest,
+  } = useFieldArray({
+    control,
+    name: 'guests',
+  });
+
   const selectedHostId = watch('hostEmployeeId');
+  const guestCountValue = watch('numberOfGuests');
+  const guestCount = Number.isFinite(guestCountValue) ? guestCountValue : 0;
+
+  useEffect(() => {
+    if (guestCount > guestFields.length) {
+      const guestsToAdd = guestCount - guestFields.length;
+      for (let i = 0; i < guestsToAdd; i += 1) {
+        appendGuest({ name: '', contact: '' });
+      }
+    } else if (guestCount < guestFields.length) {
+      for (let i = guestFields.length - 1; i >= guestCount; i -= 1) {
+        removeGuest(i);
+      }
+    }
+  }, [guestCount, guestFields.length, appendGuest, removeGuest]);
 
   // Search hosts
   const { data: hosts, isLoading: hostsLoading } = useQuery({
@@ -178,7 +221,67 @@ export default function WalkIn() {
                 <option value="OTHER">Other</option>
               </select>
             </div>
+            <div>
+              <label className="label">Guests with Visitor</label>
+              <input
+                type="number"
+                {...register('numberOfGuests', { valueAsNumber: true })}
+                className="input"
+                min="0"
+                max="10"
+              />
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Default is 0 if no additional guests accompany the visitor.
+              </p>
+            </div>
           </div>
+
+          {guestCount > 0 && (
+            <div className="mt-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">Guest Details</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Provide name and contact for each guest.
+                </p>
+              </div>
+              <div className="space-y-4">
+                {guestFields.map((field, index) => (
+                  <div
+                    key={field.id}
+                    className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700"
+                  >
+                    <div>
+                      <label className="label">Guest {index + 1} Name *</label>
+                      <input
+                        type="text"
+                        {...register(`guests.${index}.name`)}
+                        className={errors.guests?.[index]?.name ? 'input-error' : 'input'}
+                        placeholder="Guest name"
+                      />
+                      {errors.guests?.[index]?.name && (
+                        <p className="mt-1 text-xs text-danger-600">{errors.guests[index].name.message}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="label">Guest {index + 1} Contact *</label>
+                      <input
+                        type="text"
+                        {...register(`guests.${index}.contact`)}
+                        className={errors.guests?.[index]?.contact ? 'input-error' : 'input'}
+                        placeholder="Phone or email"
+                      />
+                      {errors.guests?.[index]?.contact && (
+                        <p className="mt-1 text-xs text-danger-600">{errors.guests[index].contact.message}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {errors.guests?.message && (
+                <p className="mt-2 text-sm text-danger-600">{errors.guests.message}</p>
+              )}
+            </div>
+          )}
 
           {/* ID Verification */}
           <div className="grid grid-cols-2 gap-4 mt-4">

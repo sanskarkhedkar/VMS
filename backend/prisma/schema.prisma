@@ -149,7 +149,8 @@ model Visit {
   
   // Additional info
   vehicleNumber     String?
-  numberOfGuests    Int           @default(1)
+  numberOfGuests    Int           @default(0)
+  guestDetails      Json?
   specialInstructions String?
   
   createdAt         DateTime      @default(now())
