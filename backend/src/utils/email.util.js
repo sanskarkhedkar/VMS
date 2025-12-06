@@ -28,7 +28,7 @@ const emailTemplates = {
           .header { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
           .content { background: #f8fafc; padding: 30px; border: 1px solid #e2e8f0; }
           .footer { background: #1e293b; color: #94a3b8; padding: 20px; text-align: center; border-radius: 0 0 12px 12px; font-size: 12px; }
-          .button { display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 15px 0; }
+          .button { display: inline-block; background: #2563eb; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 15px 0; font-weight: 600; }
           .highlight { background: #dbeafe; padding: 15px; border-radius: 8px; margin: 15px 0; }
         </style>
       </head>
@@ -52,7 +52,7 @@ const emailTemplates = {
             </ul>
           </div>
           <div class="footer">
-            <p>© ${new Date().getFullYear()} Visitor Management System. All rights reserved.</p>
+            <p>© ${new Date().getFullYear()} Vishay Components - VMS. All rights reserved.</p>
           </div>
         </div>
       </body>
@@ -73,7 +73,7 @@ const emailTemplates = {
           .header { background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
           .content { background: #f8fafc; padding: 30px; border: 1px solid #e2e8f0; }
           .footer { background: #1e293b; color: #94a3b8; padding: 20px; text-align: center; border-radius: 0 0 12px 12px; font-size: 12px; }
-          .button { display: inline-block; background: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 15px 0; font-weight: bold; }
+          .button { display: inline-block; background: #059669; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 15px 0; font-weight: bold; }
           .success-box { background: #d1fae5; border: 1px solid #6ee7b7; padding: 15px; border-radius: 8px; margin: 15px 0; }
         </style>
       </head>
@@ -97,7 +97,7 @@ const emailTemplates = {
             </ul>
           </div>
           <div class="footer">
-            <p>© ${new Date().getFullYear()} Visitor Management System. All rights reserved.</p>
+            <p>© ${new Date().getFullYear()} Vishay Components - VMS. All rights reserved.</p>
           </div>
         </div>
       </body>
@@ -118,7 +118,7 @@ const emailTemplates = {
           .header { background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%); color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
           .content { background: #f8fafc; padding: 30px; border: 1px solid #e2e8f0; }
           .footer { background: #1e293b; color: #94a3b8; padding: 20px; text-align: center; border-radius: 0 0 12px 12px; font-size: 12px; }
-          .button { display: inline-block; background: #7c3aed; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 15px 0; font-weight: bold; }
+          .button { display: inline-block; background: #7c3aed; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 15px 0; font-weight: bold; }
           .info-card { background: white; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; margin: 15px 0; }
           .date-time { font-size: 18px; color: #7c3aed; font-weight: bold; }
         </style>
@@ -147,7 +147,7 @@ const emailTemplates = {
             <p style="color: #64748b; font-size: 14px;">This link will expire in 7 days.</p>
           </div>
           <div class="footer">
-            <p>© ${new Date().getFullYear()} Visitor Management System. All rights reserved.</p>
+            <p>© ${new Date().getFullYear()} Vishay Components - VMS. All rights reserved.</p>
           </div>
         </div>
       </body>
@@ -200,7 +200,7 @@ const emailTemplates = {
             </p>
           </div>
           <div class="footer">
-            <p>© ${new Date().getFullYear()} Visitor Management System. All rights reserved.</p>
+            <p>© ${new Date().getFullYear()} Vishay Components - VMS. All rights reserved.</p>
           </div>
         </div>
       </body>
@@ -270,7 +270,7 @@ const emailTemplates = {
           .header { background: linear-gradient(135deg, #dc2626 0%, #f87171 100%); color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
           .content { background: #f8fafc; padding: 30px; border: 1px solid #e2e8f0; }
           .footer { background: #1e293b; color: #94a3b8; padding: 20px; text-align: center; border-radius: 0 0 12px 12px; font-size: 12px; }
-          .button { display: inline-block; background: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 15px 0; font-weight: bold; }
+          .button { display: inline-block; background: #dc2626; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 15px 0; font-weight: bold; }
           .warning-box { background: #fef2f2; border: 1px solid #fecaca; padding: 15px; border-radius: 8px; margin: 15px 0; }
         </style>
       </head>
@@ -297,7 +297,7 @@ const emailTemplates = {
             </div>
           </div>
           <div class="footer">
-            <p>© ${new Date().getFullYear()} Visitor Management System. All rights reserved.</p>
+            <p>© ${new Date().getFullYear()} Vishay Components - VMS. All rights reserved.</p>
           </div>
         </div>
       </body>

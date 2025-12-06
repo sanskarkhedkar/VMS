@@ -36,6 +36,7 @@ enum VisitorStatus {
   APPROVED
   REJECTED
   CHECKED_IN
+  MEETING_OVER
   CHECKED_OUT
   CANCELLED
   BLOCKED
@@ -129,6 +130,10 @@ model Visit {
   scheduledTimeOut  DateTime
   actualTimeIn      DateTime?
   actualTimeOut     DateTime?
+  hostCheckedOutAt  DateTime?
+  hostCheckedOutBy  String?
+  gateCheckedOutAt  DateTime?
+  gateCheckedOutBy  String?
   
   // QR & Pass
   qrCode            String?       @unique

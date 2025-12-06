@@ -148,6 +148,19 @@ export default function Dashboard() {
         <p className="page-subtitle">
           Here's what's happening with your visitors today.
         </p>
+        {user?.role === 'PROCESS_ADMIN' && (
+          <div className="flex flex-wrap gap-3 mt-4">
+            <Link to="/visitors/invite" className="btn-primary btn-sm">
+              Invite Visitor
+            </Link>
+            <Link to="/visitors" className="btn-secondary btn-sm">
+              All Visitors
+            </Link>
+            <Link to="/visits" className="btn-secondary btn-sm">
+              My Visits
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Stats Grid */}

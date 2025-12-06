@@ -72,6 +72,7 @@ export function getStatusColor(status) {
     APPROVED: 'badge-success',
     REJECTED: 'badge-danger',
     CHECKED_IN: 'badge-success',
+    MEETING_OVER: 'badge-warning',
     CHECKED_OUT: 'badge-gray',
     CANCELLED: 'badge-danger',
     BLOCKED: 'badge-danger',

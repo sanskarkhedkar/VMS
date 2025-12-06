@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import api from '../lib/api';
 import { useAuthStore } from '../store/authStore';
 import { cn, formatRole, getInitials } from '../lib/utils';
 import VishayLogo from '../assets/Vishay_Logo.svg';
@@ -22,8 +24,8 @@ import {
   ChevronDown,
   Moon,
   Sun,
-  Search,
 } from 'lucide-react';
+import EndingSoonPrompt from '../components/EndingSoonPrompt';
 
 const navigation = {
   ADMIN: [
@@ -45,7 +47,10 @@ const navigation = {
   ],
   PROCESS_ADMIN: [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Invite Visitor', href: '/visitors/invite', icon: UserPlus },
+    { name: 'Visitors', href: '/visitors', icon: Users },
     { name: 'Pending Approvals', href: '/visits/pending', icon: ClipboardCheck },
+    { name: 'My Visits', href: '/visits', icon: Calendar },
     { name: 'All Visits', href: '/visits', icon: Calendar },
     { name: 'Reports', href: '/reports', icon: FileBarChart },
   ],
@@ -75,6 +80,18 @@ export default function DashboardLayout() {
   const navigate = useNavigate();
   
   const userNavigation = navigation[user?.role] || navigation.HOST_EMPLOYEE;
+
+  const { data: notificationsData } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: async () => {
+      const response = await api.get('/notifications');
+      return response.data;
+    },
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+  const unreadCount = notificationsData?.data?.filter?.((n) => !n.isRead)?.length || 0;
+  const hasUnread = unreadCount > 0;
   
   const handleLogout = () => {
     logout();
@@ -88,6 +105,7 @@ export default function DashboardLayout() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+      <EndingSoonPrompt />
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div 
@@ -160,7 +178,7 @@ export default function DashboardLayout() {
       <div className="lg:pl-72">
         {/* Top Header */}
         <header className="sticky top-0 z-30 h-16 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700">
-          <div className="h-full px-4 lg:px-8 flex items-center justify-between gap-4">
+          <div className="h-full px-4 lg:px-8 flex items-center gap-4">
             {/* Mobile Menu Button */}
             <button
               onClick={() => setSidebarOpen(true)}
@@ -168,19 +186,9 @@ export default function DashboardLayout() {
             >
               <Menu className="w-5 h-5" />
             </button>
-            
-            {/* Search */}
-            <div className="hidden md:flex flex-1 max-w-md">
-              <div className="relative w-full">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  className="w-full pl-10 pr-4 py-2 text-sm bg-slate-100 dark:bg-slate-700 border-0 rounded-xl focus:ring-2 focus:ring-primary-500 focus:bg-white dark:focus:bg-slate-600"
-                />
-              </div>
-            </div>
-            
+
+            <div className="flex-1" />
+
             {/* Right Actions */}
             <div className="flex items-center gap-2">
               {/* Dark Mode Toggle */}
@@ -197,7 +205,9 @@ export default function DashboardLayout() {
                 className="relative p-2.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl"
               >
                 <Bell className="w-5 h-5" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-danger-500 rounded-full" />
+                {hasUnread && (
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-danger-500 rounded-full" />
+                )}
               </NavLink>
               
               {/* User Menu */}

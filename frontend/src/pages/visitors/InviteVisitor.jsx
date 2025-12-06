@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -67,6 +67,9 @@ export default function InviteVisitor() {
   const [showSearch, setShowSearch] = useState(true);
   const [selectedVisitor, setSelectedVisitor] = useState(null);
   const [success, setSuccess] = useState(false);
+  const dateInputRef = useRef(null);
+  const startTimeRef = useRef(null);
+  const endTimeRef = useRef(null);
   const navigate = useNavigate();
 
   const {
@@ -195,6 +198,14 @@ export default function InviteVisitor() {
     setValue('visitorCompany', visitor.company || '');
     setValue('numberOfGuests', 0);
     setValue('guests', []);
+  };
+
+  const focusPicker = (ref) => {
+    if (!ref?.current) return;
+    ref.current.focus();
+    if (ref.current.showPicker) {
+      ref.current.showPicker();
+    }
   };
 
   const clearSelection = () => {
@@ -496,35 +507,64 @@ export default function InviteVisitor() {
             )}
             <div>
               <label className="label">Date *</label>
-              <input
-                type="date"
-                {...register('scheduledDate')}
-                className={errors.scheduledDate ? 'input-error' : 'input'}
-                min={new Date().toISOString().split('T')[0]}
-              />
+              <div
+                className="relative cursor-pointer"
+                onClick={() => focusPicker(dateInputRef)}
+              >
+                <Calendar className="w-4 h-4 text-slate-900 dark:text-slate-300 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="date"
+                  {...register('scheduledDate', {
+                    setValueAs: (v) => v,
+                  })}
+                  className={`${errors.scheduledDate ? 'input-error' : 'input'} pl-10`}
+                  min={new Date().toISOString().split('T')[0]}
+                  ref={(el) => {
+                    register('scheduledDate').ref(el);
+                    dateInputRef.current = el;
+                  }}
+                />
+              </div>
               {errors.scheduledDate && (
                 <p className="mt-1 text-xs text-danger-600">{errors.scheduledDate.message}</p>
               )}
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="label">
-                  <Clock className="w-4 h-4 inline mr-1" />
-                  Start Time *
-                </label>
-                <input
-                  type="time"
-                  {...register('scheduledTimeIn')}
-                  className={errors.scheduledTimeIn ? 'input-error' : 'input'}
-                />
+                <label className="label">Start Time *</label>
+                <div
+                  className="relative cursor-pointer"
+                  onClick={() => focusPicker(startTimeRef)}
+                >
+                  <Clock className="w-4 h-4 text-slate-900 dark:text-slate-300 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="time"
+                    {...register('scheduledTimeIn')}
+                    className={`${errors.scheduledTimeIn ? 'input-error' : 'input'} pl-10`}
+                    ref={(el) => {
+                      register('scheduledTimeIn').ref(el);
+                      startTimeRef.current = el;
+                    }}
+                  />
+                </div>
               </div>
               <div>
                 <label className="label">End Time *</label>
-                <input
-                  type="time"
-                  {...register('scheduledTimeOut')}
-                  className={errors.scheduledTimeOut ? 'input-error' : 'input'}
-                />
+                <div
+                  className="relative cursor-pointer"
+                  onClick={() => focusPicker(endTimeRef)}
+                >
+                  <Clock className="w-4 h-4 text-slate-900 dark:text-slate-300 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="time"
+                    {...register('scheduledTimeOut')}
+                    className={`${errors.scheduledTimeOut ? 'input-error' : 'input'} pl-10`}
+                    ref={(el) => {
+                      register('scheduledTimeOut').ref(el);
+                      endTimeRef.current = el;
+                    }}
+                  />
+                </div>
               </div>
             </div>
             <div className="md:col-span-2">

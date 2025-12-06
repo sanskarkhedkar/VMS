@@ -1,6 +1,8 @@
 const prisma = require('../config/database');
 const { asyncHandler } = require('../middleware/error.middleware');
 const { logActivity } = require('../middleware/logger.middleware');
+const { sendEmail } = require('../utils/email.util');
+const { generatePassNumber, generateQRCode } = require('../utils/qr.util');
 
 // Get all visitors
 exports.getAllVisitors = asyncHandler(async (req, res) => {
@@ -250,7 +252,18 @@ exports.completeInvitation = asyncHandler(async (req, res) => {
 
   const visit = await prisma.visit.findUnique({
     where: { id: token },
-    include: { visitor: true }
+    include: {
+      visitor: true,
+      hostEmployee: {
+        select: {
+          id: true,
+          role: true,
+          firstName: true,
+          lastName: true,
+          email: true
+        }
+      }
+    }
   });
 
   if (!visit) {
@@ -279,36 +292,67 @@ exports.completeInvitation = asyncHandler(async (req, res) => {
     }
   });
 
-  // Update visit status to pending approval
-  await prisma.visit.update({
-    where: { id: token },
-    data: { status: 'PENDING_APPROVAL' }
-  });
+  // If invited by a Process Admin, auto-approve and send pass
+  if (visit.hostEmployee?.role === 'PROCESS_ADMIN') {
+    const passNumber = generatePassNumber();
+    const { qrCodeDataUrl, qrData } = await generateQRCode(visit.id, passNumber);
 
-  // Create notification for Process Admin and Security Manager
-  const approvers = await prisma.user.findMany({
-    where: {
-      role: { in: ['PROCESS_ADMIN', 'SECURITY_MANAGER'] },
-      status: 'ACTIVE'
-    }
-  });
-
-  for (const approver of approvers) {
-    await prisma.notification.create({
+    await prisma.visit.update({
+      where: { id: token },
       data: {
-        userId: approver.id,
-        title: 'Visit Pending Approval',
-        message: `${visit.visitor.firstName} ${visit.visitor.lastName} has completed their registration and is awaiting approval.`,
-        type: 'VISIT_APPROVAL_REQUIRED',
-        metadata: JSON.stringify({ visitId: visit.id })
+        status: 'APPROVED',
+        passNumber,
+        qrCode: qrData,
+        approvedById: visit.hostEmployee.id,
+        approvedAt: new Date()
       }
     });
-  }
 
-  res.json({
-    success: true,
-    message: 'Registration completed. Your visit is pending approval.'
-  });
+    await sendEmail(visit.visitor.email, 'visitApproved', {
+      visitor: visit.visitor,
+      visit: {
+        ...visit,
+        passNumber,
+        qrCode: qrData
+      },
+      qrCodeDataUrl
+    });
+
+    res.json({
+      success: true,
+      message: 'Registration completed and visit confirmed.'
+    });
+  } else {
+    // Default flow: pending approval + notify approvers
+    await prisma.visit.update({
+      where: { id: token },
+      data: { status: 'PENDING_APPROVAL' }
+    });
+
+    const approvers = await prisma.user.findMany({
+      where: {
+        role: { in: ['PROCESS_ADMIN', 'SECURITY_MANAGER'] },
+        status: 'ACTIVE'
+      }
+    });
+
+    for (const approver of approvers) {
+      await prisma.notification.create({
+        data: {
+          userId: approver.id,
+          title: 'Visit Pending Approval',
+          message: `${visit.visitor.firstName} ${visit.visitor.lastName} has completed their registration and is awaiting approval.`,
+          type: 'VISIT_APPROVAL_REQUIRED',
+          metadata: JSON.stringify({ visitId: visit.id })
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Registration completed. Your visit is pending approval.'
+    });
+  }
 });
 
 // Request visitor action (block/delete/blacklist)

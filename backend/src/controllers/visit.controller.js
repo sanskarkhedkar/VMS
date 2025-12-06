@@ -116,7 +116,7 @@ exports.getTodaysVisits = asyncHandler(async (req, res) => {
         gte: today,
         lt: tomorrow
       },
-      status: { in: ['APPROVED', 'CHECKED_IN'] }
+      status: { in: ['APPROVED', 'CHECKED_IN', 'MEETING_OVER'] }
     },
     include: {
       visitor: {
@@ -144,7 +144,7 @@ exports.getTodaysVisits = asyncHandler(async (req, res) => {
 
   // Separate by status
   const scheduled = visits.filter(v => v.status === 'APPROVED');
-  const checkedIn = visits.filter(v => v.status === 'CHECKED_IN');
+  const checkedIn = visits.filter(v => ['CHECKED_IN', 'MEETING_OVER'].includes(v.status));
 
   res.json({
     success: true,
@@ -236,6 +236,49 @@ exports.getMyVisits = asyncHandler(async (req, res) => {
       limit: parseInt(limit),
       pages: Math.ceil(total / parseInt(limit))
     }
+  });
+});
+
+// Get visits ending soon for host (within next 5 minutes)
+exports.getEndingSoonVisits = asyncHandler(async (req, res) => {
+  const now = new Date();
+  const threshold = new Date(now.getTime() + 5 * 60 * 1000);
+
+  const visits = await prisma.visit.findMany({
+    where: {
+      hostEmployeeId: req.user.id,
+      status: 'CHECKED_IN',
+      actualTimeOut: null,
+      scheduledTimeOut: {
+        gte: now,
+        lte: threshold
+      }
+    },
+    select: {
+      id: true,
+      visitor: {
+        select: {
+          firstName: true,
+          lastName: true,
+          company: true
+        }
+      },
+      scheduledTimeOut: true,
+      scheduledTimeIn: true,
+      status: true
+    },
+    orderBy: { scheduledTimeOut: 'asc' }
+  });
+
+  const data = visits.map((visit) => {
+    const remainingMs = visit.scheduledTimeOut.getTime() - now.getTime();
+    const remainingMinutes = Math.max(0, Math.round(remainingMs / 60000));
+    return { ...visit, remainingMinutes };
+  });
+
+  res.json({
+    success: true,
+    data
   });
 });
 
@@ -872,8 +915,61 @@ exports.checkInByQR = asyncHandler(async (req, res) => {
   });
 });
 
-// Check-out visitor
-exports.checkOutVisitor = asyncHandler(async (req, res) => {
+// Host checkout (mark meeting over)
+exports.checkOutHost = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const visit = await prisma.visit.findUnique({
+    where: { id },
+    include: { visitor: true, hostEmployee: true }
+  });
+
+  if (!visit) {
+    return res.status(404).json({
+      success: false,
+      message: 'Visit not found'
+    });
+  }
+
+  if (!['HOST_EMPLOYEE', 'PROCESS_ADMIN'].includes(req.user.role) || visit.hostEmployeeId !== req.user.id) {
+    return res.status(403).json({
+      success: false,
+      message: 'Only the host can mark the meeting as over'
+    });
+  }
+
+  if (visit.status !== 'CHECKED_IN') {
+    return res.status(400).json({
+      success: false,
+      message: 'Meeting can only be ended after the visitor is checked in'
+    });
+  }
+
+  await prisma.visit.update({
+    where: { id },
+    data: {
+      status: 'MEETING_OVER',
+      hostCheckedOutAt: new Date(),
+      hostCheckedOutBy: req.user.id
+    }
+  });
+
+  await logActivity({
+    userId: req.user.id,
+    visitId: id,
+    action: 'VISITOR_MEETING_OVER',
+    description: `Host marked meeting over for ${visit.visitor.email}`,
+    req
+  });
+
+  res.json({
+    success: true,
+    message: 'Meeting marked as over. Please proceed to security for gate checkout.'
+  });
+});
+
+// Security checkout (gate checkout)
+exports.checkOutSecurity = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   const visit = await prisma.visit.findUnique({
@@ -888,33 +984,36 @@ exports.checkOutVisitor = asyncHandler(async (req, res) => {
     });
   }
 
-  if (visit.status !== 'CHECKED_IN') {
+  if (visit.status !== 'MEETING_OVER') {
     return res.status(400).json({
       success: false,
-      message: 'Visitor is not checked in'
+      message: 'Host must check out the visitor before gate checkout'
     });
   }
+
+  const gateTime = new Date();
 
   await prisma.visit.update({
     where: { id },
     data: {
       status: 'CHECKED_OUT',
-      actualTimeOut: new Date()
+      actualTimeOut: gateTime,
+      gateCheckedOutAt: gateTime,
+      gateCheckedOutBy: req.user.id
     }
   });
 
-  // Log activity
   await logActivity({
     userId: req.user.id,
     visitId: id,
-    action: 'VISITOR_CHECKED_OUT',
-    description: `Visitor checked out: ${visit.visitor.email}`,
+    action: 'VISITOR_CHECKED_OUT_GATE',
+    description: `Visitor checked out at gate: ${visit.visitor.email}`,
     req
   });
 
   res.json({
     success: true,
-    message: 'Visitor checked out successfully'
+    message: 'Visitor checked out at gate'
   });
 });
 
@@ -939,7 +1038,8 @@ exports.extendVisit = asyncHandler(async (req, res) => {
     });
   }
 
-  const newEndTime = new Date(visit.scheduledTimeOut.getTime() + minutes * 60 * 1000);
+  const baseTime = new Date(visit.scheduledTimeOut.getTime());
+  const newEndTime = new Date(baseTime.getTime() + minutes * 60 * 1000);
 
   await prisma.visit.update({
     where: { id },

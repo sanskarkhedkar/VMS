@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '../../lib/api';
 import { formatDate, downloadFile } from '../../lib/utils';
@@ -12,6 +12,16 @@ export default function Reports() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [exporting, setExporting] = useState(false);
+  const startDateRef = useRef(null);
+  const endDateRef = useRef(null);
+
+  const focusPicker = (ref) => {
+    if (!ref?.current) return;
+    ref.current.focus();
+    if (ref.current.showPicker) {
+      ref.current.showPicker();
+    }
+  };
 
   const { data: report, isLoading } = useQuery({
     queryKey: ['report-summary', startDate, endDate],
@@ -99,21 +109,35 @@ export default function Reports() {
         <div className="flex flex-col sm:flex-row gap-4 items-end">
           <div className="flex-1">
             <label className="label">Start Date</label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="input"
-            />
+            <div
+              className="relative cursor-pointer"
+              onClick={() => focusPicker(startDateRef)}
+            >
+              <Calendar className="w-4 h-4 text-slate-900 dark:text-slate-300 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="input pl-9"
+                ref={startDateRef}
+              />
+            </div>
           </div>
           <div className="flex-1">
             <label className="label">End Date</label>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="input"
-            />
+            <div
+              className="relative cursor-pointer"
+              onClick={() => focusPicker(endDateRef)}
+            >
+              <Calendar className="w-4 h-4 text-slate-900 dark:text-slate-300 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="input pl-9"
+                ref={endDateRef}
+              />
+            </div>
           </div>
           <button
             onClick={() => { setStartDate(''); setEndDate(''); }}

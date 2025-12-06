@@ -46,6 +46,12 @@ router.get('/my-visits',
   visitController.getMyVisits
 );
 
+// Get visits ending soon (Host Employee / Process Admin)
+router.get('/ending-soon',
+  requireRole(ROLES.HOST_EMPLOYEE, ROLES.PROCESS_ADMIN),
+  visitController.getEndingSoonVisits
+);
+
 // Create new visit invitation
 router.post('/invite',
   [
@@ -121,9 +127,22 @@ router.post('/checkin-qr',
   visitController.checkInByQR
 );
 
-// Check-out visitor
+// Host checkout (meeting over)
+router.post('/:id/checkout/host',
+  requireRole(ROLES.HOST_EMPLOYEE, ROLES.PROCESS_ADMIN),
+  visitController.checkOutHost
+);
+
+// Security checkout (gate)
+router.post('/:id/checkout/security',
+  requireRole(ROLES.SECURITY_GUARD, ROLES.SECURITY_MANAGER),
+  visitController.checkOutSecurity
+);
+
+// Backward compatibility: treat /checkout as security gate checkout
 router.post('/:id/checkout',
-  visitController.checkOutVisitor
+  requireRole(ROLES.SECURITY_GUARD, ROLES.SECURITY_MANAGER),
+  visitController.checkOutSecurity
 );
 
 // Extend visit

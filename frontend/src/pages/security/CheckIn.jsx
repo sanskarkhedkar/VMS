@@ -10,6 +10,8 @@ import toast from 'react-hot-toast';
 export default function CheckIn() {
   const [scanResult, setScanResult] = useState(null);
   const [scanError, setScanError] = useState(null);
+  const [manualPass, setManualPass] = useState('');
+  const [manualError, setManualError] = useState(null);
   const navigate = useNavigate();
 
   const checkInMutation = useMutation({
@@ -24,6 +26,48 @@ export default function CheckIn() {
     onError: (error) => {
       setScanError(error.response?.data?.message || 'Check-in failed');
       toast.error(error.response?.data?.message || 'Check-in failed');
+    },
+  });
+
+  const manualCheckInMutation = useMutation({
+    mutationFn: async (passNumber) => {
+      const trimmed = passNumber.trim();
+      if (!trimmed) {
+        throw new Error('Enter a pass number to continue');
+      }
+
+      const searchParams = new URLSearchParams({
+        search: trimmed,
+        limit: 1,
+      });
+
+      const visitResponse = await api.get(`/visits?${searchParams.toString()}`);
+      const visit = visitResponse.data?.data?.[0];
+
+      if (!visit || !visit.passNumber) {
+        throw new Error('No visit found for this pass number');
+      }
+
+      if (visit.passNumber.toUpperCase() !== trimmed.toUpperCase()) {
+        throw new Error('Invalid pass number');
+      }
+
+      if (visit.status !== 'APPROVED') {
+        throw new Error(`Cannot check in. Visit status: ${visit.status}`);
+      }
+
+      const response = await api.post(`/visits/${visit.id}/checkin`);
+      return response.data.data;
+    },
+    onSuccess: (data) => {
+      setScanResult(data);
+      setManualError(null);
+      toast.success('Visitor checked in successfully!');
+    },
+    onError: (error) => {
+      const message = error.response?.data?.message || error.message || 'Check-in failed';
+      setManualError(message);
+      toast.error(message);
     },
   });
 
@@ -51,6 +95,8 @@ export default function CheckIn() {
   const resetScanner = () => {
     setScanResult(null);
     setScanError(null);
+    setManualPass('');
+    setManualError(null);
     window.location.reload();
   };
 
@@ -154,11 +200,52 @@ export default function CheckIn() {
 
       {/* Manual Entry Option */}
       {!scanResult && !scanError && (
-        <div className="mt-6 text-center">
-          <p className="text-slate-500 mb-3">Or enter pass number manually</p>
-          <button className="btn-secondary">
-            Enter Pass Number
-          </button>
+        <div className="mt-6 card p-5">
+          <p className="text-slate-700 dark:text-slate-300 font-medium mb-2">
+            Enter pass number manually
+          </p>
+          <p className="text-sm text-slate-500 mb-4">
+            Type the visitor&apos;s entry pass to check them in without scanning.
+          </p>
+          <form
+            className="space-y-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setManualError(null);
+              manualCheckInMutation.mutate(manualPass);
+            }}
+          >
+            <div className="flex flex-col sm:flex-row gap-3">
+              <input
+                type="text"
+                value={manualPass}
+                onChange={(e) => {
+                  setManualPass(e.target.value);
+                  if (manualError) setManualError(null);
+                }}
+                placeholder="e.g. VMS-123456"
+                className="input flex-1 uppercase"
+                disabled={manualCheckInMutation.isPending}
+              />
+              <button
+                type="submit"
+                className="btn-secondary whitespace-nowrap"
+                disabled={manualCheckInMutation.isPending}
+              >
+                {manualCheckInMutation.isPending ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Checking...
+                  </div>
+                ) : (
+                  'Check In'
+                )}
+              </button>
+            </div>
+            {manualError && (
+              <p className="text-sm text-danger-600 dark:text-danger-400">{manualError}</p>
+            )}
+          </form>
         </div>
       )}
     </div>

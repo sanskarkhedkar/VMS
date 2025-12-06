@@ -15,6 +15,8 @@ export default function VisitDetails() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
+  const isHostRole = ['HOST_EMPLOYEE', 'PROCESS_ADMIN'].includes(user?.role);
+  const isSecurityRole = ['SECURITY_GUARD', 'SECURITY_MANAGER'].includes(user?.role);
 
   const { data: visit, isLoading } = useQuery({
     queryKey: ['visit', id],
@@ -51,17 +53,26 @@ export default function VisitDetails() {
     onError: (error) => toast.error(error.response?.data?.message || 'Failed to check in'),
   });
 
-  const checkOutMutation = useMutation({
-    mutationFn: () => api.post(`/visits/${id}/checkout`),
+  const hostCheckoutMutation = useMutation({
+    mutationFn: () => api.post(`/visits/${id}/checkout/host`),
     onSuccess: () => {
-      toast.success('Visitor checked out');
+      toast.success('Meeting over — visitor checked out by host');
+      queryClient.invalidateQueries(['visit', id]);
+    },
+    onError: (error) => toast.error(error.response?.data?.message || 'Failed to mark meeting over'),
+  });
+
+  const gateCheckoutMutation = useMutation({
+    mutationFn: () => api.post(`/visits/${id}/checkout/security`),
+    onSuccess: () => {
+      toast.success('Visitor checked out at gate');
       queryClient.invalidateQueries(['visit', id]);
     },
     onError: (error) => toast.error(error.response?.data?.message || 'Failed to check out'),
   });
 
   const canApprove = ['ADMIN', 'PROCESS_ADMIN', 'SECURITY_MANAGER'].includes(user?.role);
-  const canCheckIn = ['SECURITY_GUARD', 'SECURITY_MANAGER'].includes(user?.role);
+  const canCheckIn = isSecurityRole;
 
   if (isLoading) {
     return (
@@ -186,7 +197,7 @@ export default function VisitDetails() {
                 <button
                   onClick={() => checkInMutation.mutate()}
                   disabled={checkInMutation.isPending}
-                  className="btn-success w-full"
+                  className="btn-success w-full flex items-center justify-center gap-2"
                 >
                   {checkInMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogIn className="w-5 h-5" />}
                   Check In Visitor
@@ -194,15 +205,28 @@ export default function VisitDetails() {
               </div>
             )}
 
-            {visit.status === 'CHECKED_IN' && (
+            {visit.status === 'CHECKED_IN' && isHostRole && (
               <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
                 <button
-                  onClick={() => checkOutMutation.mutate()}
-                  disabled={checkOutMutation.isPending}
-                  className="btn-warning w-full"
+                  onClick={() => hostCheckoutMutation.mutate()}
+                  disabled={hostCheckoutMutation.isPending}
+                  className="btn-danger w-full flex items-center justify-center gap-2"
                 >
-                  {checkOutMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogOut className="w-5 h-5" />}
-                  Check Out Visitor
+                  {hostCheckoutMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogOut className="w-5 h-5" />}
+                  Meeting Over — Check Out
+                </button>
+              </div>
+            )}
+
+            {visit.status === 'MEETING_OVER' && isSecurityRole && (
+              <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
+                <button
+                  onClick={() => gateCheckoutMutation.mutate()}
+                  disabled={gateCheckoutMutation.isPending}
+                  className="btn-danger w-full flex items-center justify-center gap-2"
+                >
+                  {gateCheckoutMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogOut className="w-5 h-5" />}
+                  Check Out at Gate
                 </button>
               </div>
             )}
@@ -268,6 +292,42 @@ export default function VisitDetails() {
               </p>
             </div>
           )}
+
+          {/* Timeline */}
+          <div className="card p-6">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+              Visit Timeline
+            </h2>
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="w-3 h-3 mt-1 rounded-full bg-success-500" />
+                <div>
+                  <p className="font-medium text-slate-900 dark:text-white">Checked In</p>
+                  <p className="text-sm text-slate-500">
+                    {visit.actualTimeIn ? `${formatDate(visit.actualTimeIn, 'MMM d, yyyy')} at ${formatTime(visit.actualTimeIn)}` : 'Pending'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-3 h-3 mt-1 rounded-full bg-warning-500" />
+                <div>
+                  <p className="font-medium text-slate-900 dark:text-white">Meeting Over</p>
+                  <p className="text-sm text-slate-500">
+                    {visit.hostCheckedOutAt ? `${formatDate(visit.hostCheckedOutAt, 'MMM d, yyyy')} at ${formatTime(visit.hostCheckedOutAt)}` : 'Pending host checkout'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-3 h-3 mt-1 rounded-full bg-primary-500" />
+                <div>
+                  <p className="font-medium text-slate-900 dark:text-white">Gate Checkout</p>
+                  <p className="text-sm text-slate-500">
+                    {visit.gateCheckedOutAt ? `${formatDate(visit.gateCheckedOutAt, 'MMM d, yyyy')} at ${formatTime(visit.gateCheckedOutAt)}` : 'Pending gate checkout'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Check-in/out Times */}
           {(visit.actualTimeIn || visit.actualTimeOut) && (

@@ -31,6 +31,7 @@ export default function VisitsList() {
     { value: 'PENDING_APPROVAL', label: 'Pending Approval' },
     { value: 'APPROVED', label: 'Approved' },
     { value: 'CHECKED_IN', label: 'Checked In' },
+    { value: 'MEETING_OVER', label: 'Meeting Over' },
     { value: 'CHECKED_OUT', label: 'Checked Out' },
     { value: 'CANCELLED', label: 'Cancelled' },
     { value: 'REJECTED', label: 'Rejected' },

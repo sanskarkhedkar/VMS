@@ -88,7 +88,7 @@ exports.getHostEmployees = asyncHandler(async (req, res) => {
   const { search } = req.query;
   
   const where = {
-    role: 'HOST_EMPLOYEE',
+    role: { in: ['HOST_EMPLOYEE', 'PROCESS_ADMIN'] },
     status: 'ACTIVE'
   };
 
@@ -409,7 +409,11 @@ exports.deleteUser = asyncHandler(async (req, res) => {
     });
   }
 
-  await prisma.user.delete({ where: { id } });
+  // Clean up dependent records before deleting the user to avoid FK violations
+  await prisma.$transaction([
+    prisma.notification.deleteMany({ where: { userId: id } }),
+    prisma.user.delete({ where: { id } })
+  ]);
 
   // Log activity
   await logActivity({
