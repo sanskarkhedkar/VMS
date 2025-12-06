@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { cn, formatRole, getInitials } from '../lib/utils';
+import VishayLogo from '../assets/Vishay_Logo.svg';
+import VishayLogoDark from '../assets/Vishay_Logo_dark.svg';
 import {
-  Building2,
   LayoutDashboard,
   Users,
   UserPlus,
@@ -103,11 +104,14 @@ export default function DashboardLayout() {
       )}>
         {/* Logo */}
         <div className="h-16 flex items-center justify-between px-6 border-b border-slate-200 dark:border-slate-700">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-primary-600 rounded-xl flex items-center justify-center">
-              <Building2 className="w-5 h-5 text-white" />
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="flex-shrink-0">
+              <img src={VishayLogo} alt="Vishay logo" className="h-8 w-auto dark:hidden" />
+              <img src={VishayLogoDark} alt="Vishay logo" className="h-8 w-auto hidden dark:block" />
             </div>
-            <span className="text-lg font-bold text-slate-900 dark:text-white font-display">VMS</span>
+            <span className="text-sm font-bold text-slate-900 dark:text-white font-display leading-tight max-w-[150px] sm:max-w-none">
+              Vishay Components VMS
+            </span>
           </div>
           <button 
             onClick={() => setSidebarOpen(false)}

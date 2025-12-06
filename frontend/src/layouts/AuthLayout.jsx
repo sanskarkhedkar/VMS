@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router-dom';
-import { Building2 } from 'lucide-react';
+import VishayLogo from '../assets/Vishay_Logo.svg';
+import VishayLogoDark from '../assets/Vishay_Logo_dark.svg';
 
 export default function AuthLayout() {
   return (
@@ -20,10 +21,11 @@ export default function AuthLayout() {
         {/* Content */}
         <div className="relative z-10 flex flex-col justify-center px-12 lg:px-20">
           <div className="flex items-center gap-3 mb-8">
-            <div className="w-12 h-12 bg-white/10 backdrop-blur-sm rounded-xl flex items-center justify-center">
-              <Building2 className="w-7 h-7 text-white" />
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-white">
+              <img src={VishayLogo} alt="Vishay logo" className="w-10 h-10 object-contain dark:hidden" />
+              <img src={VishayLogoDark} alt="Vishay logo" className="w-10 h-10 object-contain hidden dark:block" />
             </div>
-            <span className="text-2xl font-bold text-white font-display">VMS</span>
+            <span className="text-2xl font-bold text-white font-display">Vishay Components VMS</span>
           </div>
           
           <h1 className="text-4xl lg:text-5xl font-bold text-white leading-tight font-display mb-6">
@@ -57,10 +59,11 @@ export default function AuthLayout() {
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
           <div className="lg:hidden flex items-center justify-center gap-2 mb-8">
-            <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
-              <Building2 className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-white">
+              <img src={VishayLogo} alt="Vishay logo" className="w-8 h-8 object-contain dark:hidden" />
+              <img src={VishayLogoDark} alt="Vishay logo" className="w-8 h-8 object-contain hidden dark:block" />
             </div>
-            <span className="text-xl font-bold text-slate-900 dark:text-white font-display">VMS</span>
+            <span className="text-xl font-bold text-slate-900 dark:text-white font-display">Vishay Components VMS</span>
           </div>
           
           <Outlet />
