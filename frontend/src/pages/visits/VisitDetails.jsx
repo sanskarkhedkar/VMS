@@ -73,6 +73,7 @@ export default function VisitDetails() {
 
   const canApprove = ['ADMIN', 'PROCESS_ADMIN', 'SECURITY_MANAGER'].includes(user?.role);
   const canCheckIn = isSecurityRole;
+  const isCheckedOut = visit?.status === 'CHECKED_OUT';
 
   if (isLoading) {
     return (
@@ -218,7 +219,7 @@ export default function VisitDetails() {
               </div>
             )}
 
-            {visit.status === 'MEETING_OVER' && isSecurityRole && (
+            {visit.status === 'CHECKED_IN' && isSecurityRole && (
               <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
                 <button
                   onClick={() => gateCheckoutMutation.mutate()}
@@ -330,11 +331,11 @@ export default function VisitDetails() {
           </div>
 
           {/* Check-in/out Times */}
-          {(visit.actualTimeIn || visit.actualTimeOut) && (
-            <div className="card p-6">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Actual Times</h2>
-              <div className="space-y-3">
-                {visit.actualTimeIn && (
+            {(visit.actualTimeIn || visit.actualTimeOut) && (
+              <div className="card p-6">
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Actual Times</h2>
+                <div className="space-y-3">
+                  {visit.actualTimeIn && (
                   <div className="flex items-center justify-between">
                     <span className="text-slate-500">Checked In</span>
                     <span className="font-medium text-slate-900 dark:text-white">

@@ -127,6 +127,12 @@ router.post('/checkin-qr',
   visitController.checkInByQR
 );
 
+// Download entry pass PDF after check-in
+router.get('/:id/entry-pass',
+  requireRole(ROLES.SECURITY_GUARD, ROLES.SECURITY_MANAGER),
+  visitController.downloadEntryPass
+);
+
 // Host checkout (meeting over)
 router.post('/:id/checkout/host',
   requireRole(ROLES.HOST_EMPLOYEE, ROLES.PROCESS_ADMIN),

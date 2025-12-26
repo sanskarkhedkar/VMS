@@ -3,6 +3,7 @@ const { asyncHandler } = require('../middleware/error.middleware');
 const { logActivity } = require('../middleware/logger.middleware');
 const { sendEmail } = require('../utils/email.util');
 const { generateQRCode, generatePassNumber, verifyQRCode } = require('../utils/qr.util');
+const { generateEntryPassPDF } = require('../utils/pass.util');
 
 const normalizeGuestData = (numberOfGuests, guests) => {
   const guestCount = Number.isInteger(numberOfGuests) && numberOfGuests >= 0 ? numberOfGuests : 0;
@@ -116,7 +117,7 @@ exports.getTodaysVisits = asyncHandler(async (req, res) => {
         gte: today,
         lt: tomorrow
       },
-      status: { in: ['APPROVED', 'CHECKED_IN', 'MEETING_OVER'] }
+      status: { in: ['APPROVED', 'CHECKED_IN'] }
     },
     include: {
       visitor: {
@@ -144,7 +145,7 @@ exports.getTodaysVisits = asyncHandler(async (req, res) => {
 
   // Separate by status
   const scheduled = visits.filter(v => v.status === 'APPROVED');
-  const checkedIn = visits.filter(v => ['CHECKED_IN', 'MEETING_OVER'].includes(v.status));
+  const checkedIn = visits.filter(v => v.status === 'CHECKED_IN');
 
   res.json({
     success: true,
@@ -671,7 +672,7 @@ exports.approveVisit = asyncHandler(async (req, res) => {
   // Notify host
   await prisma.notification.create({
     data: {
-      userId: visit.hostEmployee.id,
+      userId: updatedVisit.hostEmployee.id,
       title: 'Visit Approved',
       message: `Visit for ${visit.visitor.firstName} ${visit.visitor.lastName} has been approved.`,
       type: 'VISIT_APPROVED',
@@ -782,26 +783,30 @@ exports.checkInVisitor = asyncHandler(async (req, res) => {
     });
   }
 
-  await prisma.visit.update({
+  const updatedVisit = await prisma.visit.update({
     where: { id },
     data: {
       status: 'CHECKED_IN',
       actualTimeIn: new Date()
+    },
+    include: {
+      visitor: true,
+      hostEmployee: true
     }
   });
 
   // Notify host employee
-  await sendEmail(visit.hostEmployee.email, 'visitorArrived', {
-    host: visit.hostEmployee,
-    visitor: visit.visitor,
-    visit
+  await sendEmail(updatedVisit.hostEmployee.email, 'visitorArrived', {
+    host: updatedVisit.hostEmployee,
+    visitor: updatedVisit.visitor,
+    visit: updatedVisit
   });
 
   await prisma.notification.create({
     data: {
-      userId: visit.hostEmployee.id,
+      userId: updatedVisit.hostEmployee.id,
       title: '👋 Visitor Arrived',
-      message: `${visit.visitor.firstName} ${visit.visitor.lastName} has checked in and is waiting for you.`,
+      message: `${updatedVisit.visitor.firstName} ${updatedVisit.visitor.lastName} has checked in and is waiting for you.`,
       type: 'VISITOR_ARRIVED',
       metadata: JSON.stringify({ visitId: id })
     }
@@ -820,9 +825,11 @@ exports.checkInVisitor = asyncHandler(async (req, res) => {
     success: true,
     message: 'Visitor checked in successfully',
     data: {
-      visitorName: `${visit.visitor.firstName} ${visit.visitor.lastName}`,
-      hostName: `${visit.hostEmployee.firstName} ${visit.hostEmployee.lastName}`,
-      checkInTime: new Date()
+      visit: updatedVisit,
+      visitId: updatedVisit.id,
+      visitorName: `${updatedVisit.visitor.firstName} ${updatedVisit.visitor.lastName}`,
+      hostName: `${updatedVisit.hostEmployee.firstName} ${updatedVisit.hostEmployee.lastName}`,
+      checkInTime: updatedVisit.actualTimeIn
     }
   });
 });
@@ -870,28 +877,32 @@ exports.checkInByQR = asyncHandler(async (req, res) => {
   }
 
   // Same check-in logic
-  await prisma.visit.update({
+  const updatedVisit = await prisma.visit.update({
     where: { id: visit.id },
     data: {
       status: 'CHECKED_IN',
       actualTimeIn: new Date()
+    },
+    include: {
+      visitor: true,
+      hostEmployee: true
     }
   });
 
   // Notify host
-  await sendEmail(visit.hostEmployee.email, 'visitorArrived', {
-    host: visit.hostEmployee,
-    visitor: visit.visitor,
-    visit
+  await sendEmail(updatedVisit.hostEmployee.email, 'visitorArrived', {
+    host: updatedVisit.hostEmployee,
+    visitor: updatedVisit.visitor,
+    visit: updatedVisit
   });
 
   await prisma.notification.create({
     data: {
-      userId: visit.hostEmployee.id,
+      userId: updatedVisit.hostEmployee.id,
       title: '👋 Visitor Arrived',
-      message: `${visit.visitor.firstName} ${visit.visitor.lastName} has checked in.`,
+      message: `${updatedVisit.visitor.firstName} ${updatedVisit.visitor.lastName} has checked in.`,
       type: 'VISITOR_ARRIVED',
-      metadata: JSON.stringify({ visitId: visit.id })
+      metadata: JSON.stringify({ visitId: updatedVisit.id })
     }
   });
 
@@ -908,11 +919,61 @@ exports.checkInByQR = asyncHandler(async (req, res) => {
     success: true,
     message: 'Visitor checked in successfully',
     data: {
-      visit,
-      visitorName: `${visit.visitor.firstName} ${visit.visitor.lastName}`,
-      hostName: `${visit.hostEmployee.firstName} ${visit.hostEmployee.lastName}`
+      visit: updatedVisit,
+      visitId: updatedVisit.id,
+      visitorName: `${updatedVisit.visitor.firstName} ${updatedVisit.visitor.lastName}`,
+      hostName: `${updatedVisit.hostEmployee.firstName} ${updatedVisit.hostEmployee.lastName}`,
+      checkInTime: updatedVisit.actualTimeIn
     }
   });
+});
+
+// Download entry pass PDF (post check-in)
+exports.downloadEntryPass = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const visit = await prisma.visit.findUnique({
+    where: { id },
+    include: {
+      visitor: true,
+      hostEmployee: true
+    }
+  });
+
+  if (!visit) {
+    return res.status(404).json({
+      success: false,
+      message: 'Visit not found'
+    });
+  }
+
+  if (!visit.passNumber) {
+    return res.status(400).json({
+      success: false,
+      message: 'Entry pass is not available yet for this visit'
+    });
+  }
+
+  if (!visit.actualTimeIn) {
+    return res.status(400).json({
+      success: false,
+      message: 'Visitor must be checked in before printing the entry pass'
+    });
+  }
+
+  const pdfBuffer = await generateEntryPassPDF(visit);
+
+  await logActivity({
+    userId: req.user.id,
+    visitId: visit.id,
+    action: 'ENTRY_PASS_GENERATED',
+    description: 'Entry pass PDF generated after check-in',
+    req
+  });
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename=entry-pass-${visit.passNumber}.pdf`);
+  res.send(pdfBuffer);
 });
 
 // Host checkout (mark meeting over)
@@ -931,10 +992,12 @@ exports.checkOutHost = asyncHandler(async (req, res) => {
     });
   }
 
-  if (!['HOST_EMPLOYEE', 'PROCESS_ADMIN'].includes(req.user.role) || visit.hostEmployeeId !== req.user.id) {
+  const isHost = req.user.role === 'HOST_EMPLOYEE';
+  const isProcessAdmin = req.user.role === 'PROCESS_ADMIN';
+  if ((isHost && visit.hostEmployeeId !== req.user.id) || (!isHost && !isProcessAdmin)) {
     return res.status(403).json({
       success: false,
-      message: 'Only the host can mark the meeting as over'
+      message: 'Only the host or a process admin can mark the meeting as over'
     });
   }
 
@@ -945,12 +1008,12 @@ exports.checkOutHost = asyncHandler(async (req, res) => {
     });
   }
 
+  const endTime = new Date();
   await prisma.visit.update({
     where: { id },
     data: {
-      status: 'MEETING_OVER',
-      hostCheckedOutAt: new Date(),
-      hostCheckedOutBy: req.user.id
+      status: 'CHECKED_OUT',
+      actualTimeOut: endTime
     }
   });
 
@@ -964,7 +1027,7 @@ exports.checkOutHost = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    message: 'Meeting marked as over. Please proceed to security for gate checkout.'
+    message: 'Visitor checked out by host/process admin.'
   });
 });
 
@@ -984,10 +1047,17 @@ exports.checkOutSecurity = asyncHandler(async (req, res) => {
     });
   }
 
-  if (visit.status !== 'MEETING_OVER') {
+  if (visit.status === 'CHECKED_OUT') {
+    return res.json({
+      success: true,
+      message: 'Visitor already checked out'
+    });
+  }
+
+  if (visit.status !== 'CHECKED_IN') {
     return res.status(400).json({
       success: false,
-      message: 'Host must check out the visitor before gate checkout'
+      message: 'Visitor must be checked in before gate checkout'
     });
   }
 
@@ -997,9 +1067,7 @@ exports.checkOutSecurity = asyncHandler(async (req, res) => {
     where: { id },
     data: {
       status: 'CHECKED_OUT',
-      actualTimeOut: gateTime,
-      gateCheckedOutAt: gateTime,
-      gateCheckedOutBy: req.user.id
+      actualTimeOut: gateTime
     }
   });
 

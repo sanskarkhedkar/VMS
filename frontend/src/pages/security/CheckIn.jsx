@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import api from '../../lib/api';
-import { getFullName, formatTime } from '../../lib/utils';
-import { QrCode, CheckCircle, AlertCircle, Loader2, ArrowLeft } from 'lucide-react';
+import { downloadFile, getFullName, formatTime } from '../../lib/utils';
+import { QrCode, CheckCircle, AlertCircle, Loader2, ArrowLeft, Printer } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
@@ -12,6 +12,9 @@ export default function CheckIn() {
   const [scanError, setScanError] = useState(null);
   const [manualPass, setManualPass] = useState('');
   const [manualError, setManualError] = useState(null);
+  const [scanning, setScanning] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const scannerRef = useRef(null);
   const navigate = useNavigate();
 
   const checkInMutation = useMutation({
@@ -72,33 +75,96 @@ export default function CheckIn() {
   });
 
   useEffect(() => {
-    const scanner = new Html5QrcodeScanner('qr-reader', {
-      qrbox: { width: 250, height: 250 },
-      fps: 5,
-    });
-
-    scanner.render(
-      (decodedText) => {
-        scanner.clear();
-        checkInMutation.mutate(decodedText);
-      },
-      (error) => {
-        // Silently ignore scan errors
-      }
-    );
-
     return () => {
-      scanner.clear().catch(() => {});
+      if (scannerRef.current) {
+        scannerRef.current.clear().catch(() => {});
+      }
     };
   }, []);
+
+  const startScanning = async () => {
+    setScanError(null);
+    try {
+      if (navigator.mediaDevices?.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        stream.getTracks().forEach((t) => t.stop());
+      }
+
+      if (!scannerRef.current) {
+        scannerRef.current = new Html5QrcodeScanner('qr-reader', {
+          qrbox: { width: 250, height: 250 },
+          fps: 5,
+        });
+      }
+
+      setScanning(true);
+      scannerRef.current.render(
+        (decodedText) => {
+          scannerRef.current?.clear();
+          setScanning(false);
+          checkInMutation.mutate(decodedText);
+        },
+        () => {}
+      );
+    } catch (err) {
+      setScanning(false);
+      setScanError('Camera permission is required to scan');
+      toast.error('Camera permission is required to scan');
+    }
+  };
 
   const resetScanner = () => {
     setScanResult(null);
     setScanError(null);
     setManualPass('');
     setManualError(null);
-    window.location.reload();
+    setScanning(false);
+    if (scannerRef.current) {
+      scannerRef.current.clear().catch(() => {});
+      scannerRef.current = null;
+    }
   };
+
+  const handlePrintPass = async () => {
+    const visitId = scanResult?.visit?.id || scanResult?.visitId;
+
+    if (!visitId) {
+      toast.error('Visit details are missing. Please try scanning again.');
+      return;
+    }
+
+    try {
+      setIsPrinting(true);
+      const response = await api.get(`/visits/${visitId}/entry-pass`, {
+        responseType: 'blob',
+      });
+
+      const filename = scanResult?.visit?.passNumber
+        ? `entry-pass-${scanResult.visit.passNumber}.pdf`
+        : 'entry-pass.pdf';
+
+      downloadFile(response.data, filename);
+
+      const url = window.URL.createObjectURL(response.data);
+      const printWindow = window.open(url);
+      if (printWindow) {
+        printWindow.onload = () => {
+          printWindow.focus();
+          printWindow.print();
+        };
+      }
+      setTimeout(() => window.URL.revokeObjectURL(url), 2000);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Could not generate entry pass');
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
+  const visitInfo = scanResult?.visit;
+  const visitorName = scanResult?.visitorName || getFullName(visitInfo?.visitor);
+  const hostName = scanResult?.hostName || getFullName(visitInfo?.hostEmployee);
+  const checkInDisplay = formatTime(scanResult?.checkInTime || visitInfo?.actualTimeIn || new Date());
 
   return (
     <div className="max-w-lg mx-auto animate-fade-in">
@@ -133,33 +199,69 @@ export default function CheckIn() {
           
           <div className="bg-slate-100 dark:bg-slate-700 rounded-xl p-4 mt-4 text-left">
             <div className="space-y-2">
+              {visitInfo?.passNumber && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Pass Number</span>
+                  <span className="font-mono font-semibold text-primary-700 dark:text-primary-300">
+                    {visitInfo.passNumber}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-slate-500">Visitor</span>
                 <span className="font-medium text-slate-900 dark:text-white">
-                  {scanResult.visitorName}
+                  {visitorName}
                 </span>
               </div>
+              {visitInfo?.visitor?.company && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Company</span>
+                  <span className="font-medium text-slate-900 dark:text-white">
+                    {visitInfo.visitor.company}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-slate-500">Host</span>
                 <span className="font-medium text-slate-900 dark:text-white">
-                  {scanResult.hostName}
+                  {hostName}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Check-In Time</span>
                 <span className="font-medium text-slate-900 dark:text-white">
-                  {formatTime(scanResult.checkInTime || new Date())}
+                  {checkInDisplay}
                 </span>
               </div>
             </div>
           </div>
 
-          <button
-            onClick={resetScanner}
-            className="btn-primary w-full mt-6"
-          >
-            Scan Another
-          </button>
+          <div className="grid sm:grid-cols-2 gap-3 mt-6">
+            <button
+              onClick={handlePrintPass}
+              className="btn-primary w-full flex items-center justify-center gap-2"
+              disabled={isPrinting}
+            >
+              {isPrinting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Preparing PDF...
+                </>
+              ) : (
+                <>
+                  <Printer className="w-4 h-4" /> Print Entry Pass
+                </>
+              )}
+            </button>
+            <button
+              onClick={resetScanner}
+              className="btn-secondary w-full"
+            >
+              Scan Another
+            </button>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-3">
+            The downloaded PDF includes the visitor details and on-site instructions for the guest.
+          </p>
         </div>
       )}
 
@@ -187,13 +289,41 @@ export default function CheckIn() {
       {/* Scanner */}
       {!scanResult && !scanError && (
         <div className="card overflow-hidden">
+          <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+              <QrCode className="w-5 h-5 text-primary-500" />
+              <span className="font-semibold">Scan Visitor QR</span>
+            </div>
+            <button
+              type="button"
+              className="btn-primary btn-sm"
+              onClick={startScanning}
+              disabled={scanning || checkInMutation.isPending}
+            >
+              {scanning ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Starting...
+                </div>
+              ) : (
+                'Start Scanning'
+              )}
+            </button>
+          </div>
           {checkInMutation.isPending ? (
             <div className="p-12 text-center">
               <Loader2 className="w-12 h-12 animate-spin text-primary-600 mx-auto mb-4" />
               <p className="text-slate-500">Processing check-in...</p>
             </div>
           ) : (
-            <div id="qr-reader" className="w-full" />
+            <div className="p-4 text-center text-slate-500">
+              <div id="qr-reader" className="w-full min-h-[320px]" />
+              {!scanning && (
+                <p className="mt-3 text-sm text-slate-500">
+                  Click &ldquo;Start Scanning&rdquo; to request camera access and scan the QR.
+                </p>
+              )}
+            </div>
           )}
         </div>
       )}
