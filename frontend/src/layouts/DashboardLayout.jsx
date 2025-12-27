@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import api from '../lib/api';
@@ -81,6 +81,41 @@ export default function DashboardLayout() {
   
   const userNavigation = navigation[user?.role] || navigation.HOST_EMPLOYEE;
 
+  const dashboardEndpoint = user?.role === 'ADMIN'
+    ? '/dashboard/admin'
+    : user?.role === 'PROCESS_ADMIN'
+    ? '/dashboard/process-admin'
+    : user?.role === 'SECURITY_MANAGER'
+    ? '/dashboard/security-manager'
+    : null;
+
+  const { data: sidebarData } = useQuery({
+    queryKey: ['sidebar-stats', user?.role],
+    queryFn: async () => {
+      const response = await api.get(dashboardEndpoint);
+      return response.data.data;
+    },
+    enabled: Boolean(dashboardEndpoint),
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+  });
+
+  const navBadges = useMemo(() => {
+    const stats = sidebarData?.stats || sidebarData || {};
+    const badges = {};
+
+    if (user?.role === 'ADMIN') {
+      badges['/admin/pending-users'] = stats.pendingUserApprovals;
+      badges['/visits/pending'] = stats.pendingVisitApprovals;
+    }
+
+    if (user?.role === 'PROCESS_ADMIN' || user?.role === 'SECURITY_MANAGER') {
+      badges['/visits/pending'] = stats.pendingApprovals;
+    }
+
+    return badges;
+  }, [sidebarData, user?.role]);
+
   const { data: notificationsData } = useQuery({
     queryKey: ['notifications'],
     queryFn: async () => {
@@ -152,6 +187,11 @@ export default function DashboardLayout() {
             >
               <item.icon className="w-5 h-5 flex-shrink-0" />
               <span>{item.name}</span>
+              {navBadges?.[item.href] > 0 && (
+                <span className="ml-auto inline-flex items-center justify-center min-w-[1.5rem] px-2 h-6 rounded-full bg-danger-100 text-danger-700 dark:bg-danger-900/40 dark:text-danger-100 text-xs font-semibold">
+                  {navBadges[item.href] > 99 ? '99+' : navBadges[item.href]}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>

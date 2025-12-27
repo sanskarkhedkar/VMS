@@ -126,7 +126,12 @@ export default function EndingSoonPrompt() {
 
           <div className="flex justify-end gap-2 pt-2">
             <button
-              onClick={() => setSelectedVisitId(null)}
+              onClick={() => {
+                if (activeVisit?.id) {
+                  setDismissedIds((prev) => new Set([...prev, activeVisit.id]));
+                }
+                setSelectedVisitId(null);
+              }}
               className="btn-secondary"
               type="button"
             >
