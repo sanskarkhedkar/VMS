@@ -409,6 +409,23 @@ exports.deleteUser = asyncHandler(async (req, res) => {
     });
   }
 
+  // Guard against FK violations before attempting deletion
+  const [hostedVisitsCount, visitorRequestCount] = await Promise.all([
+    prisma.visit.count({ where: { hostEmployeeId: id } }),
+    prisma.visitorRequest.count({ where: { requestedById: id } })
+  ]);
+
+  if (hostedVisitsCount > 0 || visitorRequestCount > 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'User cannot be deleted while they are linked to visits or visitor requests. Reassign or remove those records first.',
+      data: {
+        hostedVisits: hostedVisitsCount,
+        visitorRequests: visitorRequestCount
+      }
+    });
+  }
+
   // Clean up dependent records before deleting the user to avoid FK violations
   await prisma.$transaction([
     prisma.notification.deleteMany({ where: { userId: id } }),
