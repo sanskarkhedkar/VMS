@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const { initSocket } = require('./utils/socket.util');
 
 // Import routes
 const authRoutes = require('./routes/auth.routes');
@@ -80,8 +81,10 @@ app.use(errorHandler);
 // ============================================
 
 const PORT = process.env.PORT || 5000;
+const server = require('http').createServer(app);
+initSocket(server, app);
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`
   ╔═══════════════════════════════════════════════╗
   ║     Visitor Management System API             ║
@@ -91,4 +94,4 @@ app.listen(PORT, () => {
   `);
 });
 
-module.exports = app;
+module.exports = { app, server };

@@ -46,6 +46,7 @@ router.post('/signup', signupValidation, validate, authController.signup);
 router.post('/login', loginValidation, validate, authController.login);
 router.post('/forgot-password', forgotPasswordValidation, validate, authController.forgotPassword);
 router.post('/reset-password', resetPasswordValidation, validate, authController.resetPassword);
+router.get('/verify', authenticate, authController.verify);
 router.get('/me', authenticate, authController.getCurrentUser);
 router.put('/change-password', authenticate, authController.changePassword);
 

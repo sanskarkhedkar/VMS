@@ -31,7 +31,11 @@ build/
 # Testing
 coverage/
 .nyc_output/
+/vms-notification-agent
+
 
 # Misc
 *.tsbuildinfo
 .cache/
+
+

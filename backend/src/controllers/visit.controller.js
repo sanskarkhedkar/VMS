@@ -4,6 +4,10 @@ const { logActivity } = require('../middleware/logger.middleware');
 const { sendEmail } = require('../utils/email.util');
 const { generateQRCode, generatePassNumber, verifyQRCode } = require('../utils/qr.util');
 const { generateEntryPassPDF } = require('../utils/pass.util');
+const { sendNotification, visitorEvents } = require('../utils/socket.util');
+
+const frontendBaseUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+const buildFrontendUrl = (path = '') => `${frontendBaseUrl}${path}`;
 
 const normalizeGuestData = (numberOfGuests, guests) => {
   const guestCount = Number.isInteger(numberOfGuests) && numberOfGuests >= 0 ? numberOfGuests : 0;
@@ -465,6 +469,13 @@ exports.reinviteVisitor = asyncHandler(async (req, res) => {
         metadata: JSON.stringify({ visitId: visit.id })
       }
     });
+
+    sendNotification(approver.id, {
+      title: 'Visit Pending Approval',
+      body: `${visitor.firstName} ${visitor.lastName} has been re-invited by ${req.user.firstName} ${req.user.lastName}.`,
+      url: buildFrontendUrl(`/visits/${visit.id}`),
+      type: 'VISIT_APPROVAL_REQUIRED'
+    });
   }
 
   // Log activity
@@ -593,6 +604,19 @@ exports.createWalkIn = asyncHandler(async (req, res) => {
     }
   });
 
+  sendNotification(hostEmployeeId, {
+    title: 'Walk-in Visitor Waiting',
+    body: `${visitor.firstName} ${visitor.lastName} is at the reception and wants to meet you. Please approve or reject.`,
+    url: buildFrontendUrl(`/visits/${visit.id}`),
+    type: 'WALKIN_APPROVAL_REQUIRED'
+  });
+
+  visitorEvents.approvalRequired(hostEmployeeId, {
+    id: visit.id,
+    name: `${visitor.firstName} ${visitor.lastName}`,
+    purpose
+  });
+
   // Log activity
   await logActivity({
     userId: req.user.id,
@@ -680,6 +704,19 @@ exports.approveVisit = asyncHandler(async (req, res) => {
     }
   });
 
+  sendNotification(updatedVisit.hostEmployee.id, {
+    title: 'Visit Approved',
+    body: `Visit for ${visit.visitor.firstName} ${visit.visitor.lastName} has been approved.`,
+    url: buildFrontendUrl(`/visits/${id}`),
+    type: 'VISIT_APPROVED'
+  });
+
+  visitorEvents.approved(updatedVisit.hostEmployee.id, {
+    id,
+    name: `${visit.visitor.firstName} ${visit.visitor.lastName}`,
+    approvedBy: `${req.user.firstName} ${req.user.lastName}`
+  });
+
   // Log activity
   await logActivity({
     userId: req.user.id,
@@ -732,6 +769,19 @@ exports.rejectVisit = asyncHandler(async (req, res) => {
       type: 'VISIT_REJECTED',
       metadata: JSON.stringify({ visitId: id })
     }
+  });
+
+  sendNotification(visit.hostEmployee.id, {
+    title: 'Visit Rejected',
+    body: `Visit for ${visit.visitor.firstName} ${visit.visitor.lastName} has been rejected.${reason ? ` Reason: ${reason}` : ''}`,
+    url: buildFrontendUrl(`/visits/${id}`),
+    type: 'VISIT_REJECTED'
+  });
+
+  visitorEvents.rejected(visit.hostEmployee.id, {
+    id,
+    name: `${visit.visitor.firstName} ${visit.visitor.lastName}`,
+    reason: reason || 'Not specified'
   });
 
   // Log activity
@@ -805,11 +855,24 @@ exports.checkInVisitor = asyncHandler(async (req, res) => {
   await prisma.notification.create({
     data: {
       userId: updatedVisit.hostEmployee.id,
-      title: '👋 Visitor Arrived',
+      title: 'Visitor Arrived',
       message: `${updatedVisit.visitor.firstName} ${updatedVisit.visitor.lastName} has checked in and is waiting for you.`,
       type: 'VISITOR_ARRIVED',
       metadata: JSON.stringify({ visitId: id })
     }
+  });
+
+  sendNotification(updatedVisit.hostEmployee.id, {
+    title: 'Visitor Arrived',
+    body: `${updatedVisit.visitor.firstName} ${updatedVisit.visitor.lastName} has checked in and is waiting for you.`,
+    url: buildFrontendUrl(`/visits/${id}`),
+    type: 'VISITOR_ARRIVED'
+  });
+
+  visitorEvents.arrived(updatedVisit.hostEmployee.id, {
+    id,
+    name: `${updatedVisit.visitor.firstName} ${updatedVisit.visitor.lastName}`,
+    location: 'Reception'
   });
 
   // Log activity
@@ -899,11 +962,24 @@ exports.checkInByQR = asyncHandler(async (req, res) => {
   await prisma.notification.create({
     data: {
       userId: updatedVisit.hostEmployee.id,
-      title: '👋 Visitor Arrived',
+      title: 'Visitor Arrived',
       message: `${updatedVisit.visitor.firstName} ${updatedVisit.visitor.lastName} has checked in.`,
       type: 'VISITOR_ARRIVED',
       metadata: JSON.stringify({ visitId: updatedVisit.id })
     }
+  });
+
+  sendNotification(updatedVisit.hostEmployee.id, {
+    title: 'Visitor Arrived',
+    body: `${updatedVisit.visitor.firstName} ${updatedVisit.visitor.lastName} has checked in.`,
+    url: buildFrontendUrl(`/visits/${updatedVisit.id}`),
+    type: 'VISITOR_ARRIVED'
+  });
+
+  visitorEvents.arrived(updatedVisit.hostEmployee.id, {
+    id: updatedVisit.id,
+    name: `${updatedVisit.visitor.firstName} ${updatedVisit.visitor.lastName}`,
+    location: 'Reception'
   });
 
   // Log activity
@@ -1037,7 +1113,16 @@ exports.checkOutSecurity = asyncHandler(async (req, res) => {
 
   const visit = await prisma.visit.findUnique({
     where: { id },
-    include: { visitor: true }
+    include: {
+      visitor: true,
+      hostEmployee: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true
+        }
+      }
+    }
   });
 
   if (!visit) {
@@ -1063,13 +1148,37 @@ exports.checkOutSecurity = asyncHandler(async (req, res) => {
 
   const gateTime = new Date();
 
-  await prisma.visit.update({
+  const checkoutVisit = await prisma.visit.update({
     where: { id },
     data: {
       status: 'CHECKED_OUT',
       actualTimeOut: gateTime
+    },
+    include: {
+      visitor: true,
+      hostEmployee: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true
+        }
+      }
     }
   });
+
+  if (checkoutVisit.hostEmployee) {
+    sendNotification(checkoutVisit.hostEmployee.id, {
+      title: 'Visitor Checked Out',
+      body: `${checkoutVisit.visitor.firstName} ${checkoutVisit.visitor.lastName} has left.`,
+      url: buildFrontendUrl(`/visits/${id}`),
+      type: 'VISITOR_CHECKED_OUT'
+    });
+
+    visitorEvents.checkout(checkoutVisit.hostEmployee.id, {
+      id,
+      name: `${checkoutVisit.visitor.firstName} ${checkoutVisit.visitor.lastName}`
+    });
+  }
 
   await logActivity({
     userId: req.user.id,
