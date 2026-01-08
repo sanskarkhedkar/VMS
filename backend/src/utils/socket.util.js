@@ -7,20 +7,25 @@ const frontendBaseUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').re
 const buildFrontendUrl = (path = '') => `${frontendBaseUrl}${path}`;
 
 const getCorsOrigin = () => {
+  const defaults = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:1430',
+    'http://127.0.0.1:1430'
+  ];
+
   const fromEnv = (process.env.SOCKET_ORIGINS || process.env.FRONTEND_URL || '')
     .split(',')
     .map((value) => value.trim())
     .filter(Boolean);
 
-  if (!fromEnv.length) {
-    return '*';
+  const origins = [...defaults, ...fromEnv];
+
+  if (!origins.includes('file://')) {
+    origins.push('file://');
   }
 
-  if (!fromEnv.includes('file://')) {
-    fromEnv.push('file://');
-  }
-
-  return fromEnv;
+  return Array.from(new Set(origins));
 };
 
 /**

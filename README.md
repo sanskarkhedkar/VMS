@@ -79,6 +79,12 @@ vms/
 - PostgreSQL 14+
 - npm or yarn
 
+### Desktop Notification Agent (Tauri)
+- Location: `./vms-notification-agent-tauri` (replaces the legacy Electron agent)
+- Install & run: `cd vms-notification-agent-tauri && npm install && npm run tauri dev`
+- Backend URL: enter your VMS API host (e.g., `http://localhost:5000`) in the agent; it will call `/api/auth/login` and open a Socket.IO connection to the same host.
+- Build installers: `npm run build` (outputs to `src-tauri/target/release/bundle/`)
+
 ### Backend Setup
 
 1. Navigate to backend directory:

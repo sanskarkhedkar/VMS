@@ -32,6 +32,7 @@ build/
 coverage/
 .nyc_output/
 /vms-notification-agent
+/vms-notification-agent-tauri
 
 
 # Misc

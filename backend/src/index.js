@@ -25,8 +25,30 @@ const app = express();
 // ============================================
 
 // CORS configuration
+const getHttpCorsOrigins = () => {
+  const defaults = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:1430',
+    'http://127.0.0.1:1430'
+  ];
+
+  const fromEnv = (process.env.HTTP_ORIGINS || process.env.FRONTEND_URL || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  const merged = [...defaults, ...fromEnv];
+
+  if (!merged.includes('file://')) {
+    merged.push('file://');
+  }
+
+  return Array.from(new Set(merged));
+};
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: getHttpCorsOrigins(),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
